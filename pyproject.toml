@@ -1,0 +1,38 @@
+[tool.poetry]
+name = "streaming-analytics-demo"
+version = "0.1.0"
+description = ""
+authors = ["Chris Pike <chris.pike@vertrix.ai>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+clickhouse-driver = "^0.2.9"
+websockets = "^14.2"
+click = "^8.1.8"
+flake8-docstrings = "^1.7.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+black = "^25.1.0"
+flake8 = "^7.1.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+include = '\.pyi?$'
+extend-exclude = '''
+# A regex preceded with ^/ will apply only to files and directories
+# in the root of the project.
+^/tests/fixtures/
+'''
