@@ -7,8 +7,10 @@ Raises:
 """
 
 import click
+import logging
 from jsonschema import validate, ValidationError
 from pathlib import Path
+from typing import Dict
 from urllib.parse import urlparse
 from urllib.parse import (
     ParseResult,
@@ -16,6 +18,8 @@ from urllib.parse import (
 import yaml
 
 from streaming_analytics_demo.sources import CoinbaseSource
+
+logger = logging.getLogger(__name__)
 
 
 class URLType(click.ParamType):
@@ -55,17 +59,26 @@ class URLType(click.ParamType):
 )
 @click.option("--url", "-u", type=URLType(), help="URL to connect to", required=True)
 def listen(config: Path, url: ParseResult) -> tuple[Path, ParseResult]:
-    """Listen to a stream using the configuration in 'config' and the URL in 'url'.
+    """Listen to a stream using the configuration in 'config' and the URL in 'url'."""
+    import asyncio
 
-    Args:
-        config (Path): Path to the configuration file
-        url (ParseResult): Validated URL object
+    config_data = build_config(config)
+    return asyncio.run(_async_listen(config_data, url))
 
-    Returns:
-        tuple[Path, ParseResult]: Tuple of config path and parsed URL
-    """
-    config = build_config(config)
-    return (config, url)
+
+async def _async_listen(
+    config_data: Dict, url: ParseResult
+) -> tuple[Path, ParseResult]:
+    """Async implementation of listen command."""
+    source = CoinbaseSource(config_data)
+    try:
+        logger.info("Connecting to Coinbase WebSocket feed")
+        await source.connect()
+        logger.info("Connected to Coinbase WebSocket feed")
+    except ConnectionError as e:
+        logger.error("Failed to connect to Coinbase WebSocket feed: {}", e)
+        raise click.BadParameter(f"Failed to connect to Coinbase WebSocket feed: {e}")
+    return (config_data, url)
 
 
 def build_config(config_path: Path) -> dict:
@@ -83,22 +96,29 @@ def build_config(config_path: Path) -> dict:
     try:
         # Load schema
         schema_path = CoinbaseSource.get_schema_path()
+        logger.info("Loading schema from: %s", str(schema_path))
         with open(schema_path, "r") as f:
             schema = yaml.safe_load(f)
 
         # Load config
+        logger.info("Loading config from: %s", str(config_path))
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
         # Validate against schema
+        logger.info("Validating config against schema")
         validate(instance=config, schema=schema)
+        logger.info("Config validation passed")
         return config
 
     except yaml.YAMLError as e:
+        logger.error("Invalid YAML in config file: %s", str(e))
         raise click.BadParameter(f"Invalid YAML in config file: {e}")
     except ValidationError as e:
+        logger.error("Config validation failed: %s", e.message)
         raise click.BadParameter(f"Config validation failed: {e.message}")
     except Exception as e:
+        logger.error("Error reading config file: %s", str(e))
         raise click.BadParameter(f"Error reading config file: {e}")
 
 
