@@ -36,7 +36,8 @@ def listen(config: Path) -> tuple[Path]:
 
 async def _async_listen(config_data: Dict) -> Path:
     """Async implementation of listen command."""
-    source = CoinbaseSource(config_data)
+    source_config = config_data.get("source")
+    source = CoinbaseSource(source_config)
     try:
         logger.info("Connecting to Coinbase WebSocket feed")
         await source.connect()

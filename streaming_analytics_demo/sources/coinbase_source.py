@@ -40,7 +40,8 @@ class CoinbaseSource:
         """
         try:
             logger.info("Connecting to Coinbase WebSocket feed")
-            self.websocket = await websockets.connect(self.config["wss_url"])
+            url = self.config.get("wss_url")
+            self.websocket = await websockets.connect(url)
             logger.info("Connected to Coinbase WebSocket feed")
             self._connected = True
             # Build subscription message
