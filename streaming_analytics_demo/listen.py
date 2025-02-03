@@ -7,6 +7,7 @@ Raises:
 """
 
 import click
+import json
 import logging
 from jsonschema import validate, ValidationError
 from pathlib import Path
@@ -31,10 +32,13 @@ def listen(config: Path) -> tuple[Path]:
     """Listen to a stream using the configuration in 'config'."""
     import asyncio
 
-    config_data = build_config(config)
-    source = asyncio.run(_async_connect_source(config_data))
-    sink = asyncio.run(_async_connect_sink(config_data))
-    asyncio.run(_async_listen(source, sink))
+    async def run():
+        config_data = build_config(config)
+        source = await _async_connect_source(config_data)
+        sink = await _async_connect_sink(config_data)
+        await _async_listen(source, sink)
+
+    asyncio.run(run())
 
 
 async def _async_connect_source(config_data: Dict) -> CoinbaseSource:
@@ -66,7 +70,7 @@ async def _async_listen(source: CoinbaseSource, sink: FileSink) -> None:
             try:
                 message = await source.receive()
                 logger.debug("Received message: %s", message)
-                await sink.write(message)
+                await sink.write(json.dumps(message))
             except KeyboardInterrupt:
                 logger.info("Received interrupt, shutting down...")
                 break

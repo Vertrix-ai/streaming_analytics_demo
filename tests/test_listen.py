@@ -1,5 +1,6 @@
 """Tests the argument handling of the listen command."""
 
+import json
 import pytest
 from click.testing import CliRunner
 from pathlib import Path
@@ -96,7 +97,7 @@ async def test_async_listen_happy_path():
     assert source.receive.await_count == len(messages) + 1
     assert sink.write.await_count == len(messages)
     for msg, call in zip(messages, sink.write.await_args_list):
-        assert call.args[0] == msg
+        assert call.args[0] == json.dumps(msg)
 
     # Verify cleanup
     source.disconnect.assert_awaited_once()
