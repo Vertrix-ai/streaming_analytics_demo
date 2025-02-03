@@ -16,7 +16,9 @@ import yaml
 
 from streaming_analytics_demo.sinks import FileSink
 from streaming_analytics_demo.sources import CoinbaseSource
+from streaming_analytics_demo.util import setup_logging
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
