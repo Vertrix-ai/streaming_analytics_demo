@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict
 import yaml
 
+from streaming_analytics_demo.sinks import FileSink
 from streaming_analytics_demo.sources import CoinbaseSource
 
 logger = logging.getLogger(__name__)
@@ -31,10 +32,12 @@ def listen(config: Path) -> tuple[Path]:
     import asyncio
 
     config_data = build_config(config)
-    return asyncio.run(_async_listen(config_data))
+    source = asyncio.run(_async_connect_source(config_data))
+    sink = asyncio.run(_async_connect_sink(config_data))
+    asyncio.run(_async_listen(source, sink))
 
 
-async def _async_listen(config_data: Dict) -> Path:
+async def _async_connect_source(config_data: Dict) -> CoinbaseSource:
     """Async implementation of listen command."""
     source_config = config_data.get("source")
     source = CoinbaseSource(source_config)
@@ -45,7 +48,38 @@ async def _async_listen(config_data: Dict) -> Path:
     except ConnectionError as e:
         logger.error("Failed to connect to Coinbase WebSocket feed: {}", e)
         raise click.BadParameter(f"Failed to connect to Coinbase WebSocket feed: {e}")
-    return config_data
+    return source
+
+
+async def _async_connect_sink(config_data: Dict) -> FileSink:
+    """Async implementation of listen command."""
+    sink_config = config_data.get("sink")
+    sink = FileSink(sink_config)
+    await sink.connect()
+    return sink
+
+
+async def _async_listen(source: CoinbaseSource, sink: FileSink) -> None:
+    """Async implementation of listen command."""
+    try:
+        while True:
+            try:
+                message = await source.receive()
+                logger.debug("Received message: %s", message)
+                await sink.write(message)
+            except KeyboardInterrupt:
+                logger.info("Received interrupt, shutting down...")
+                break
+            except Exception as e:
+                logger.error("Error processing message: %s", str(e))
+                break
+    except Exception as e:
+        logger.error("lost connection to feed: %s", str(e))
+        raise e
+    finally:
+        logger.info("Disconnecting from Coinbase WebSocket feed")
+        await source.disconnect()
+        await sink.disconnect()
 
 
 def build_config(config_path: Path) -> dict:
