@@ -1,9 +1,11 @@
 """Coinbase WebSocket source implementation."""
 
+import asyncio
 import json
 import logging
 from pathlib import Path
 from typing import Dict, Any
+import warnings
 import websockets
 
 logger = logging.getLogger(__name__)
@@ -30,9 +32,24 @@ class CoinbaseSource:
         self.config = config
         self.websocket = None
         self._connected = False
+        self._loop = None
         logger.info("Coinbase source initialized")
 
-    async def connect(self) -> None:
+    def __del__(self):
+        """Ensure websocket is closed when the instance is garbage collected."""
+        if self.websocket:
+            if self._loop and self._loop.is_running():
+                # We're in an event loop, we can run disconnect
+                asyncio.create_task(self.disconnect())
+            else:
+                warnings.warn(
+                    "CoinbaseSource was garbage collected with a websocket still open "
+                    "and no running event loop to clean it up.",
+                    ResourceWarning,
+                    source=self,
+                )
+
+    async def connect(self) -> Any:
         """Connect to the Coinbase WebSocket feed.
 
         Raises:
@@ -63,9 +80,25 @@ class CoinbaseSource:
                     "Failed to subscribe to the Coinbase WebSocket feed: %s",
                     str(response_data),
                 )
+                await self.disconnect()
                 raise ConnectionError(
                     "Failed to subscribe to the Coinbase WebSocket feed"
                 )
         except Exception as e:
+            await self.disconnect()
+
             logger.error("Lost connection to Coinbase WebSocket feed: %s", str(e))
             raise ConnectionError(f"Lost connection to Coinbase WebSocket feed: {e}")
+        return response_data
+
+    async def disconnect(self) -> None:
+        """Gracefully disconnect from the WebSocket feed."""
+        try:
+            logger.info("Disconnecting from Coinbase WebSocket feed")
+            await self.websocket.close()
+            logger.info("Disconnected from Coinbase WebSocket feed")
+        except Exception as e:
+            logger.error("Error during disconnect: %s", str(e))
+        finally:
+            self._connected = False
+            self.websocket = None
