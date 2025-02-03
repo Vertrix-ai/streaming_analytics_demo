@@ -52,9 +52,7 @@ def test_listen_with_valid_arguments(runner, mock_coinbase_source):
             return_value=schema_path,
         ),
     ):
-        result = runner.invoke(
-            listen, ["--config", str(config_file), "--url", "http://example.com"]
-        )
+        result = runner.invoke(listen, ["--config", str(config_file)])
 
     assert result.exit_code == 0
     mock_coinbase_source.return_value.connect.assert_awaited_once()
@@ -68,21 +66,9 @@ def test_listen_missing_arguments(runner):
     assert "Missing option" in result.output
 
 
-def test_listen_invalid_url(runner):
-    """Given an invalid URL the listen command should fail."""
-    config_file = Path(__file__).parent / "fixtures" / "valid_config.yml"
-
-    # Test with invalid URL
-    result = runner.invoke(listen, ["--config", str(config_file), "--url", "not-a-url"])
-    assert result.exit_code != 0
-    assert "is not a valid URL" in result.output
-
-
 def test_listen_nonexistent_config(runner):
     """Given a non-existent config file the listen command should fail."""
     # Test with non-existent config file
-    result = runner.invoke(
-        listen, ["--config", "nonexistent.yaml", "--url", "http://example.com"]
-    )
+    result = runner.invoke(listen, ["--config", "nonexistent.yaml"])
     assert result.exit_code != 0
     assert "does not exist" in result.output

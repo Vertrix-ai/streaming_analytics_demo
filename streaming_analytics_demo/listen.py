@@ -11,42 +11,11 @@ import logging
 from jsonschema import validate, ValidationError
 from pathlib import Path
 from typing import Dict
-from urllib.parse import urlparse
-from urllib.parse import (
-    ParseResult,
-)  # noqa: F401 # URLType.convert is used by click's type system
 import yaml
 
 from streaming_analytics_demo.sources import CoinbaseSource
 
 logger = logging.getLogger(__name__)
-
-
-class URLType(click.ParamType):
-    """Click type for validating URLs."""
-
-    name = "url"
-
-    def convert(self, value, param, ctx) -> ParseResult:
-        """Given a string, validate it as a URL.
-
-        Raises:
-            ValueError: If the string is not a valid URL.
-            ValueError: If the string is empty.
-
-        Returns:
-            ParseResult: a parsed URL
-        """
-        if value is None:
-            raise ValueError("URL cannot be empty")
-
-        try:
-            result = urlparse(value)
-            if all([result.scheme, result.netloc]):
-                return result
-            raise ValueError
-        except ValueError:
-            self.fail(f"'{value}' is not a valid URL", param, ctx)
 
 
 @click.command()
@@ -57,18 +26,15 @@ class URLType(click.ParamType):
     help="Path to configuration file",
     required=True,
 )
-@click.option("--url", "-u", type=URLType(), help="URL to connect to", required=True)
-def listen(config: Path, url: ParseResult) -> tuple[Path, ParseResult]:
-    """Listen to a stream using the configuration in 'config' and the URL in 'url'."""
+def listen(config: Path) -> tuple[Path]:
+    """Listen to a stream using the configuration in 'config'."""
     import asyncio
 
     config_data = build_config(config)
-    return asyncio.run(_async_listen(config_data, url))
+    return asyncio.run(_async_listen(config_data))
 
 
-async def _async_listen(
-    config_data: Dict, url: ParseResult
-) -> tuple[Path, ParseResult]:
+async def _async_listen(config_data: Dict) -> Path:
     """Async implementation of listen command."""
     source = CoinbaseSource(config_data)
     try:
@@ -78,7 +44,7 @@ async def _async_listen(
     except ConnectionError as e:
         logger.error("Failed to connect to Coinbase WebSocket feed: {}", e)
         raise click.BadParameter(f"Failed to connect to Coinbase WebSocket feed: {e}")
-    return (config_data, url)
+    return config_data
 
 
 def build_config(config_path: Path) -> dict:
