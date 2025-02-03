@@ -1,8 +1,9 @@
 """File sink for the streaming analytics demo."""
 
+import jsonschema
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Type
+from typing import Dict, Type, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,11 @@ def register_sink(sink_type: str):
     """Register a sink type."""
 
     def wrapper(cls):
+        # Verify the subclass has defined its own config_schema
+        if cls.config_schema is Sink.config_schema:
+            raise TypeError(
+                f"Sink subclass {cls.__name__} must define its own config_schema"
+            )
         _sink_registry[sink_type] = cls
         return cls
 
@@ -25,11 +31,19 @@ def get_sink(config: dict) -> "Sink":
     sink_class = _sink_registry.get(sink_type)
     if not sink_class:
         raise ValueError(f"Unknown sink type: {sink_type}")
+    jsonschema.validate(config, sink_class.config_schema)
     return sink_class(config)
 
 
 class Sink(ABC):
     """Sink that writes messages to a file."""
+
+    # Class variable to define the configuration schema
+    config_schema: ClassVar[dict] = {
+        "type": "object",
+        "required": ["type"],
+        "properties": {"type": {"type": "string"}},
+    }
 
     def __init__(self, config: dict):
         """Initialize the FileSink."""

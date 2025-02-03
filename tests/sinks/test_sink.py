@@ -8,6 +8,12 @@ from streaming_analytics_demo.sinks import FileSink
 class TestSink(Sink):
     """Test sink that does nothing."""
 
+    config_schema = {
+        "type": "object",
+        "required": ["type"],
+        "properties": {"type": {"type": "string"}},
+    }
+
     def __init__(self, config: dict):
         """Initialize the test sink."""
         super().__init__(config)

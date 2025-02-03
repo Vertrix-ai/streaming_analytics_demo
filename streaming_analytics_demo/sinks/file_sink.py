@@ -10,6 +10,16 @@ logger = logging.getLogger(__name__)
 class FileSink(Sink):
     """Sink that writes messages to a file."""
 
+    config_schema = {
+        "type": "object",
+        "required": ["type", "file_path"],
+        "properties": {
+            "type": {"type": "string", "enum": ["file"]},
+            "file_path": {"type": "string"},
+        },
+        "additionalProperties": False,
+    }
+
     def __init__(self, config: dict):
         """Initialize the FileSink."""
         self.config = config
