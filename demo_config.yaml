@@ -1,0 +1,14 @@
+source:
+  wss_url: "wss://ws-feed.exchange.coinbase.com"
+  type: coinbase
+  name: coinbase_bitcoin_ticker
+  subscription:
+    product_ids:
+      - "BTC-USD"
+    channels:
+      - "ticker"
+
+sink:
+  type: file
+  name: file_sink
+  file_path: "test.jsonl"
