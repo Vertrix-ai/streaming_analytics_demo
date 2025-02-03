@@ -1,11 +1,13 @@
 """File sink for the streaming analytics demo."""
 
 import logging
+from .sink import Sink, register_sink
 
 logger = logging.getLogger(__name__)
 
 
-class FileSink:
+@register_sink("file")
+class FileSink(Sink):
     """Sink that writes messages to a file."""
 
     def __init__(self, config: dict):
