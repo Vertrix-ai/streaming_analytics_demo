@@ -1,1 +1,1 @@
-"""listens to a stream and pushes to clickhouse."""
+"""Streaming analytics demo package."""

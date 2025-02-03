@@ -55,4 +55,4 @@ def test_listen_nonexistent_config(runner):
         listen, ["--config", "nonexistent.yaml", "--url", "http://example.com"]
     )
     assert result.exit_code != 0
-    assert "No such file or directory" in result.output
+    assert "does not exist" in result.output

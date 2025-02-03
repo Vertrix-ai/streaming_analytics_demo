@@ -7,11 +7,15 @@ Raises:
 """
 
 import click
+from jsonschema import validate, ValidationError
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.parse import (
     ParseResult,
 )  # noqa: F401 # URLType.convert is used by click's type system
+import yaml
+
+from streaming_analytics_demo.sources import CoinbaseSource
 
 
 class URLType(click.ParamType):
@@ -45,19 +49,57 @@ class URLType(click.ParamType):
 @click.option(
     "--config",
     "-c",
-    type=click.File("r"),
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Path to configuration file",
     required=True,
 )
 @click.option("--url", "-u", type=URLType(), help="URL to connect to", required=True)
-def listen(config: click.File, url: ParseResult) -> tuple[Path, ParseResult]:
+def listen(config: Path, url: ParseResult) -> tuple[Path, ParseResult]:
     """Listen to a stream using the configuration in 'config' and the URL in 'url'.
 
     Args:
-        config (file): Opened file stream of the configuration file
-        url (str): Validated URL string
+        config (Path): Path to the configuration file
+        url (ParseResult): Validated URL object
+
+    Returns:
+        tuple[Path, ParseResult]: Tuple of config path and parsed URL
     """
-    return (config.name, url)
+    config = build_config(config)
+    return (config, url)
+
+
+def build_config(config_path: Path) -> dict:
+    """Build a configuration dictionary from config file.
+
+    Args:
+        config_path (Path): Path to the configuration file
+
+    Returns:
+        dict: Parsed configuration dictionary
+
+    Raises:
+        click.BadParameter: If the YAML is invalid, schema validation fails, or file cannot be read
+    """
+    try:
+        # Load schema
+        schema_path = CoinbaseSource.get_schema_path()
+        with open(schema_path, "r") as f:
+            schema = yaml.safe_load(f)
+
+        # Load config
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        # Validate against schema
+        validate(instance=config, schema=schema)
+        return config
+
+    except yaml.YAMLError as e:
+        raise click.BadParameter(f"Invalid YAML in config file: {e}")
+    except ValidationError as e:
+        raise click.BadParameter(f"Config validation failed: {e.message}")
+    except Exception as e:
+        raise click.BadParameter(f"Error reading config file: {e}")
 
 
 if __name__ == "__main__":
