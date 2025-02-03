@@ -1,6 +1,7 @@
 type: object
 required:
   - source
+  - sink
 properties:
   source:
     type: object
@@ -44,4 +45,15 @@ properties:
                 - "matches"
                 - "full"
                 - "heartbeat"
+  sink:
+    type: object
+    required:
+      - type
+      - file_path
+    properties:
+      type:
+        type: string
+        enum: ["file"]
+      file_path:
+        type: string
 additionalProperties: false  # No extra top-level properties allowed

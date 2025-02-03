@@ -7,3 +7,8 @@ source:
       - "BTC-USD"
     channels:
       - "ticker"
+
+sink:
+  type: file
+  name: file_sink
+  file_path: "test.jsonl"
