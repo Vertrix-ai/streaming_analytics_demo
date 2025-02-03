@@ -21,7 +21,7 @@ class FileSink:
         self._file = open(self._file_path, "a")
 
     async def write(self, message: str) -> None:
-        """Write a message to the file."""
+        """Write a single message to the file."""
         if not self._file or self._file.closed:
             raise RuntimeError("Must connect before writing")
 
