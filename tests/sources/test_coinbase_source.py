@@ -96,3 +96,47 @@ async def test_disconnect_when_not_connected(valid_config, mock_websocket):
     # Verify state
     assert source._connected is False
     assert source.websocket is None
+
+
+@pytest.mark.asyncio
+async def test_receive_message(valid_config, mock_websocket):
+    """Test receiving a single message from the WebSocket feed."""
+    source = CoinbaseSource(valid_config)
+
+    # explicitly set the websocket and connected state
+    source.websocket = mock_websocket
+    source._connected = True
+
+    # Set up mock message
+    test_message = {"type": "ticker", "price": "50000.00", "product_id": "BTC-USD"}
+    mock_websocket.recv = AsyncMock(return_value=json.dumps(test_message))
+
+    # Connect and receive
+    received_message = await source.receive()
+
+    assert received_message == test_message
+
+
+@pytest.mark.asyncio
+async def test_receive_failed(valid_config, mock_websocket):
+    """Test that receive raises error when not connected."""
+    source = CoinbaseSource(valid_config)
+
+    # explicitly set the websocket and connected state
+    source.websocket = mock_websocket
+    source._connected = True
+
+    mock_websocket.recv = AsyncMock(side_effect=Exception("Test exception"))
+
+    exception_raised = False
+    # Connect and receive
+    try:
+        await source.receive()
+    except Exception:
+        assert source._connected is False
+        assert source.websocket is None
+        exception_raised = True
+
+    # Verify close was called
+    mock_websocket.close.assert_awaited_once()
+    assert exception_raised is True

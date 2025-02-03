@@ -102,3 +102,13 @@ class CoinbaseSource:
         finally:
             self._connected = False
             self.websocket = None
+
+    async def receive(self) -> Any:
+        """Receive messages from the Coinbase WebSocket feed."""
+        try:
+            message = await self.websocket.recv()
+            return json.loads(message)
+        except Exception as e:
+            logger.error("Error receiving message: %s", str(e))
+            await self.disconnect()
+            raise e
