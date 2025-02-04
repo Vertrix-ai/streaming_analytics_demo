@@ -9,5 +9,10 @@ source:
       - "ticker"
 
 sink:
-  type: file
-  file_path: "test.jsonl"
+  type: clickhouse_connect
+  host: "localhost"
+  port: 8123
+  database: "coinbase_demo"
+  table: "coinbase_ticker"
+  user: "default"
+  password: ""

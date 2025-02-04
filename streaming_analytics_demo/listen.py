@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict
 import yaml
 
-from streaming_analytics_demo.sinks import FileSink
+from streaming_analytics_demo.sinks import get_sink, Sink
 from streaming_analytics_demo.sources import CoinbaseSource
 from streaming_analytics_demo.util import setup_logging
 
@@ -57,15 +57,15 @@ async def _async_connect_source(config_data: Dict) -> CoinbaseSource:
     return source
 
 
-async def _async_connect_sink(config_data: Dict) -> FileSink:
+async def _async_connect_sink(config_data: Dict) -> Sink:
     """Async implementation of listen command."""
     sink_config = config_data.get("sink")
-    sink = FileSink(sink_config)
+    sink = get_sink(sink_config)
     await sink.connect()
     return sink
 
 
-async def _async_listen(source: CoinbaseSource, sink: FileSink) -> None:
+async def _async_listen(source: CoinbaseSource, sink: Sink) -> None:
     """Async implementation of listen command."""
     try:
         while True:
