@@ -4,7 +4,7 @@ A simple but flexible streaming tool for streaming data for migrating data from 
 
 ## Overview
 
-This project demonstrates a modular approach to stream processing with configurable output sinks. It uses an extensible architecture that allows for easy addition of new sink types through registration. Take a look at streaming_analytics_demo/sinks/file_sink.py for an example of a custom sink.
+This project demonstrates a modular approach to stream processing with configurable output sinks. It uses an extensible architecture that allows for easy addition of new source andsink types through registration. Take a look at streaming_analytics_demo/sinks/file_sink.py for an example of a custom sink.
 
 ## Features
 
@@ -14,6 +14,16 @@ This project demonstrates a modular approach to stream processing with configura
 - Built-in sinks:
   - File sink
   - Clickhouse sink
+- Built-in sources:
+  - Coinbase streaming API
+
+## Missing stuff you'd want for production
+ - backpressure handling
+ - metrics
+ - message specification and validation
+ - reconnection
+ - liveness checks
+ - rate limiting
 
 ## Installation
 
@@ -72,9 +82,9 @@ This project demonstrates a modular approach to stream processing with configura
    ```
 
 8. You should now see data in your clickhouse server
-```
-select * from coinbase_demo.coinbase_ticker;
-```
+    ```bash
+    select * from coinbase_demo.coinbase_ticker;
+    ```
 
 
 ## Configuration
