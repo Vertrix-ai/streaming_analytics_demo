@@ -3,25 +3,59 @@
 import asyncio
 import json
 import logging
-from pathlib import Path
 from typing import Dict, Any
 import warnings
 import websockets
 
+from .source import Source, register_source
+
 logger = logging.getLogger(__name__)
 
 
-class CoinbaseSource:
+@register_source("coinbase")
+class CoinbaseSource(Source):
     """Source implementation for Coinbase WebSocket API."""
 
-    @classmethod
-    def get_schema_path(cls) -> Path:
-        """Get the path to the schema file for this source.
-
-        Returns:
-            Path: Path to the schema file
-        """
-        return Path(__file__).parent / "config.schema.yaml"
+    config_schema = {
+        "type": "object",
+        "required": ["name", "wss_url", "type", "subscription"],
+        "properties": {
+            "name": {"type": "string"},
+            "wss_url": {
+                "type": "string",
+                "format": "uri-reference",
+                "pattern": "^wss?://",
+            },
+            "type": {"type": "string", "enum": ["coinbase"]},
+            "subscription": {
+                "type": "object",
+                "required": ["product_ids", "channels"],
+                "properties": {
+                    "product_ids": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": True,
+                        "items": {"type": "string", "pattern": "^[A-Z]+-[A-Z]+$"},
+                    },
+                    "channels": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": True,
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "ticker",
+                                "level2",
+                                "matches",
+                                "full",
+                                "heartbeat",
+                            ],
+                        },
+                    },
+                },
+            },
+        },
+    }
 
     def __init__(self, config: Dict[str, Any]):
         """Initialize the Coinbase source.

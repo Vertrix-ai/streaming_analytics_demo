@@ -18,45 +18,45 @@ def runner():
 def mock_coinbase_source():
     """Create a mock CoinbaseSource."""
     # Create instance mock
-    mock_source = AsyncMock()
+    mock_source = MagicMock()
     mock_source.connect = AsyncMock()
     mock_source.disconnect = AsyncMock()
-    mock_source.stream = AsyncMock()
+    mock_source.receive = AsyncMock(return_value={"key": "value"})
 
-    # Mock the async context manager
-    mock_source.__aenter__ = AsyncMock(return_value=mock_source)
-    mock_source.__aexit__ = AsyncMock()
-
-    # Create class mock
-    mock_class = MagicMock()
-    mock_class.return_value = mock_source
-
-    return mock_class
+    return mock_source
 
 
-def test_listen_with_valid_arguments(runner, mock_coinbase_source):
+@pytest.fixture
+def mock_sink():
+    """Create a mock Sink."""
+    mock_sink = MagicMock()
+    mock_sink.connect = AsyncMock()
+    mock_sink.disconnect = AsyncMock()
+    mock_sink.write = AsyncMock(side_effect=KeyboardInterrupt("break the loop"))
+
+    return mock_sink
+
+
+def test_listen_with_valid_arguments(runner, mock_coinbase_source, mock_sink):
     """Given valid arguments the listen command should parse them correctly and proceed."""
     config_file = Path(__file__).parent / "fixtures" / "valid_config.yml"
-    schema_path = (
-        Path(__file__).parent.parent
-        / "streaming_analytics_demo"
-        / "sources"
-        / "config.schema.yaml"
-    )
 
     assert config_file.exists(), f"Config file not found at {config_file}"
 
+    # Provide mock implementations of get_source and get_sink
+    mock_get_source = MagicMock(return_value=mock_coinbase_source)
+    mock_get_sink = MagicMock(return_value=mock_sink)
     with (
-        patch("streaming_analytics_demo.listen.CoinbaseSource", mock_coinbase_source),
-        patch(
-            "streaming_analytics_demo.listen.CoinbaseSource.get_schema_path",
-            return_value=schema_path,
-        ),
+        patch("streaming_analytics_demo.listen.get_source", mock_get_source),
+        patch("streaming_analytics_demo.listen.get_sink", mock_get_sink),
     ):
         result = runner.invoke(listen, ["--config", str(config_file)])
 
     assert result.exit_code == 0
-    mock_coinbase_source.return_value.connect.assert_awaited_once()
+    mock_coinbase_source.connect.assert_awaited_once()
+    mock_sink.write.assert_awaited_once()
+    mock_sink.disconnect.assert_awaited_once()
+    mock_coinbase_source.disconnect.assert_awaited_once()
 
 
 def test_listen_missing_arguments(runner):

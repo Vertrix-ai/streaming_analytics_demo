@@ -1,4 +1,4 @@
-"""File sink for the streaming analytics demo."""
+"""Generic sink implementation. This includes the base class and a registry of sinks."""
 
 import jsonschema
 import logging
@@ -36,7 +36,7 @@ def get_sink(config: dict) -> "Sink":
 
 
 class Sink(ABC):
-    """Sink that writes messages to a file."""
+    """Generic sink base class."""
 
     # Class variable to define the configuration schema
     config_schema: ClassVar[dict] = {
@@ -46,7 +46,7 @@ class Sink(ABC):
     }
 
     def __init__(self, config: dict):
-        """Initialize the FileSink."""
+        """All sinks must be initialized with a config."""
         self.config = config
 
     @abstractmethod

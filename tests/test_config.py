@@ -29,11 +29,3 @@ def test_missing_required_fields():
     with pytest.raises(BadParameter) as exc_info:
         build_config(config_path)
     assert "required property" in str(exc_info.value)
-
-
-def test_invalid_type():
-    """Test that an invalid type raises an error."""
-    config_path = Path(__file__).parent / "fixtures" / "config_invalid_type.yml"
-    with pytest.raises(BadParameter) as exc_info:
-        build_config(config_path)
-    assert "is not one of" in str(exc_info.value)

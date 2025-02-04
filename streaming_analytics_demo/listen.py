@@ -15,7 +15,7 @@ from typing import Dict
 import yaml
 
 from streaming_analytics_demo.sinks import get_sink, Sink
-from streaming_analytics_demo.sources import CoinbaseSource
+from streaming_analytics_demo.sources import Source, get_source
 from streaming_analytics_demo.util import setup_logging
 
 setup_logging()
@@ -43,17 +43,20 @@ def listen(config: Path) -> tuple[Path]:
     asyncio.run(run())
 
 
-async def _async_connect_source(config_data: Dict) -> CoinbaseSource:
+async def _async_connect_source(config_data: Dict) -> Source:
     """Async implementation of listen command."""
     source_config = config_data.get("source")
-    source = CoinbaseSource(source_config)
+    source = get_source(source_config)
     try:
-        logger.info("Connecting to Coinbase WebSocket feed")
+        logger.info("Connecting to Source feed %s", source.__class__.__name__)
         await source.connect()
-        logger.info("Connected to Coinbase WebSocket feed")
+        logger.info("Connected to Source feed")
     except ConnectionError as e:
-        logger.error("Failed to connect to Coinbase WebSocket feed: {}", e)
-        raise click.BadParameter(f"Failed to connect to Coinbase WebSocket feed: {e}")
+        logger.error("Failed to connect to Source feed: %s", str(e))
+        raise Exception(f"Failed to connect to source: {e}")
+    except Exception as e:
+        logger.error("Failed to connect to Source: %s", str(e))
+        raise Exception(f"Failed to connect to Source: {e}")
     return source
 
 
@@ -61,11 +64,19 @@ async def _async_connect_sink(config_data: Dict) -> Sink:
     """Async implementation of listen command."""
     sink_config = config_data.get("sink")
     sink = get_sink(sink_config)
-    await sink.connect()
+    try:
+        logger.info("Connecting to Sink %s", sink.__class__.__name__)
+        await sink.connect()
+        logger.info("Connected to Sink")
+    except Exception as e:
+        logger.error("Failed to connect to Sink: %s", str(e))
+        raise Exception(
+            f"Failed to connect to Sink: {e}",
+        )
     return sink
 
 
-async def _async_listen(source: CoinbaseSource, sink: Sink) -> None:
+async def _async_listen(source: Source, sink: Sink) -> None:
     """Async implementation of listen command."""
     try:
         while True:
@@ -83,7 +94,7 @@ async def _async_listen(source: CoinbaseSource, sink: Sink) -> None:
         logger.error("lost connection to feed: %s", str(e))
         raise e
     finally:
-        logger.info("Disconnecting from Coinbase WebSocket feed")
+        logger.info("Disconnecting from Source")
         await source.disconnect()
         await sink.disconnect()
 
@@ -101,8 +112,8 @@ def build_config(config_path: Path) -> dict:
         click.BadParameter: If the YAML is invalid, schema validation fails, or file cannot be read
     """
     try:
-        # Load schema
-        schema_path = CoinbaseSource.get_schema_path()
+        # Load top level schema
+        schema_path = Path(__file__).parent / "config.schema.yaml"
         logger.info("Loading schema from: %s", str(schema_path))
         with open(schema_path, "r") as f:
             schema = yaml.safe_load(f)
@@ -113,9 +124,9 @@ def build_config(config_path: Path) -> dict:
             config = yaml.safe_load(f)
 
         # Validate against schema
-        logger.info("Validating config against schema")
+        logger.info("Validating top levelconfig against schema")
         validate(instance=config, schema=schema)
-        logger.info("Config validation passed")
+        logger.info("Top level config validation passed")
         return config
 
     except yaml.YAMLError as e:

@@ -1,0 +1,26 @@
+# This defines the top-level config schema for the streaming analytics demo.
+# It is used to validate the config file passed to the demo. Each source and sink
+
+
+type: object
+required:
+  - source
+  - sink
+
+properties:
+  source:
+    type: object
+    required:
+      - type
+    properties:
+      type:
+        type: string
+
+  sink:
+    type: object
+    required:
+      - type
+    properties:
+      type:
+        type: string
+additionalProperties: false  # No extra top-level properties allowed

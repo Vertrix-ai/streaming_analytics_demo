@@ -66,10 +66,15 @@ This project demonstrates a modular approach to stream processing with configura
     ) ENGINE = MergeTree() ORDER BY (time, product_id, sequence);
     ```
 
-4. Run the demo:
+7. Run the demo:
    ```bash
    poetry run python streaming_analytics_demo/listen.py --config demo_config.yaml
    ```
+
+8. You should now see data in your clickhouse server
+```
+select * from coinbase_demo.coinbase_ticker;
+```
 
 
 ## Configuration
