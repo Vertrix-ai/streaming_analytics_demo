@@ -24,6 +24,7 @@ This project demonstrates a modular approach to stream processing with configura
  - reconnection
  - liveness checks
  - rate limiting
+ - environment variables for configuration
 
 ## Installation
 
