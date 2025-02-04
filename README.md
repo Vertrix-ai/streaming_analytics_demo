@@ -4,11 +4,11 @@ A simple but flexible streaming tool for streaming data for migrating data from 
 
 ## Overview
 
-This project demonstrates a modular approach to stream processing with configurable output sinks. It uses an extensible architecture that allows for easy addition of new source andsink types through registration. Take a look at streaming_analytics_demo/sinks/file_sink.py for an example of a custom sink.
+This project demonstrates a modular approach to stream processing with configurable sources and sinks. It uses an extensible architecture that allows for easy addition of new source andsink types through registration. Take a look at streaming_analytics_demo/sinks/file_sink.py for an example of a custom sink.
 
 ## Features
 
-- Pluggable sink architecture
+- Pluggable source and sink architecture
 - JSON schema validation for sink configurations
 - Async I/O support
 - Built-in sinks:
