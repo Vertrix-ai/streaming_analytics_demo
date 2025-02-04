@@ -1,7 +1,6 @@
 source:
   wss_url: "wss://ws-feed.exchange.coinbase.com"
   type: fuzzy
-  name: coinbase_bitcoin_ticker
   subscription:
     product_ids:
       - "BTC-USD"

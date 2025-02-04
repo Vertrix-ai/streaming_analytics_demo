@@ -18,9 +18,8 @@ class CoinbaseSource(Source):
 
     config_schema = {
         "type": "object",
-        "required": ["name", "wss_url", "type", "subscription"],
+        "required": ["wss_url", "type", "subscription"],
         "properties": {
-            "name": {"type": "string"},
             "wss_url": {
                 "type": "string",
                 "format": "uri-reference",

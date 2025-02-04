@@ -18,7 +18,6 @@ def test_valid_config():
 
     # Check values
     assert config["source"]["type"] == "coinbase"
-    assert config["source"]["name"] == "coinbase_bitcoin_ticker"
     assert isinstance(config["source"]["subscription"]["product_ids"], list)
     assert isinstance(config["source"]["subscription"]["channels"], list)
 
