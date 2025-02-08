@@ -35,5 +35,4 @@ SELECT
 FROM time_series ts
 LEFT JOIN trade_by_minute t ON fromUnixTimestamp(ts.minute) = t.minute
 GROUP BY ts.minute
-ORDER BY ts.minute DESC
-LIMIT 100;
+ORDER BY ts.minute DESC;

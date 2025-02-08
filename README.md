@@ -52,7 +52,6 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
     docker exec -it clickhouse-server clickhouse-client
     ```
     If you see the clickhouse prompt, then your clickhouse server is running and accessible.
-    ```
 
 5. Create the database we'll use to store our data.
     ```bash
@@ -60,7 +59,7 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
     ```
 
 6. Create the table we'll use to store our data.
-    ```bash
+    ```sql
     CREATE TABLE IF NOT EXISTS coinbase_demo.coinbase_ticker (
         sequence UInt64,
         trade_id UInt64,
@@ -94,7 +93,7 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
 
 ## Monitoring
 
-Now that we have some data in our databawse, let's get some basic observability in place. Unlike batch processing, where there are many tools and libraries to choose from, streaming observability is a bit more ad-hoc. There are few tools that are purpose-built for streaming observability, and many of them are quite expensive. Since this is a demo, we'll use a combination of open source tools to get a basic observability stack. The first, most basic thing we can do is monitor the ingestion rate of our data. Take a look at the `sql/ingestion_monitoring.sql` file for the query we'll use. This query will give us the number of rows ingested per minute, including gaps. If you just ingest for a while, stop it for a few minutes, and rerun, then run this query, you'll see the gaps.
+Now that we have some data in our database, let's get some basic observability in place. Unlike batch processing, where there are many tools and libraries to choose from, streaming observability is a bit more ad-hoc. There are few tools that are purpose-built for streaming observability. Since this is a demo, we'll use open source tools to get a basic observability stack. The first, most basic thing we can do is monitor the ingestion rate of our data. Take a look at the `sql/ingestion_monitoring.sql` file for the query we'll use. This query will give us the number of rows ingested per minute, including gaps. If you just ingest for a while, stop it for a few minutes, and rerun, then run this query, you'll see the gaps.
 
 That's a good start, but it's not very useful. We can't really see the big picture. Let's add a few more tools to our stack. We'll start out by installing grafana.
 
@@ -145,6 +144,102 @@ We'll then add a new 'Threshold' on Input 'A' and set the condition to 'Is Below
 Now, go ahead and stop the ingestion and you will see your Alert rule change to 'firing'. You can also go to your dashboard and see that the incoming messages have stopped. You can restart the ingestion and watch the alert return to 'normal'. There is a lot more that can be done here - for example examining sequence number to identify much smaller gaps in the data, but this provides a good starting point.
 
 This also illustrates the importance of monitoring your data. If we hadn't been monitoring, we wouldn't have known that the ingestion had stopped until we got some strange results from our analytics - which may have been too late.
+
+## Improvements
+
+One of the things you'll immediately notice is that in our dashboard we are running a query every minute to refresh the data. Taking a look at the query, on what for clickhouse is quite a small dataset gives the following timing information on my laptop:
+
+```
+5304 rows in set. Elapsed: 0.046 sec. Processed 791.55 thousand rows, 8.44 MB (17.23 million rows/s., 183.77 MB/s.)
+Peak memory usage: 37.01 MiB.
+```
+
+Running that query every minute is a waste of resources. We can do better by using a materialized view. Take a look at sql/ingestion_monitoring_view.sql to see the queries we'll use.
+
+We are first creating a table to store the trades per minute. 
+
+```sql
+CREATE TABLE IF NOT EXISTS coinbase_demo.trades_per_minute
+(
+    minute DateTime,
+    num_trades UInt64
+) ENGINE = SummingMergeTree()
+ORDER BY minute;
+```
+
+Notice the use of 'SummingMergeTree()' This is a special engine for summing sequential data. As new data is ingested it is summed up at merge time, maintaining fast inserts, but removing the need to sum all rows each time we query the table. 
+
+We then create a materialized view that updates the trades per minute table.
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS coinbase_demo.trades_per_minute_mv
+TO coinbase_demo.trades_per_minute
+AS
+SELECT 
+    tumbleStart(time, toIntervalMinute(1)) as minute,
+    countIf(last_size > 0) as num_trades
+FROM coinbase_demo.coinbase_ticker
+GROUP BY minute;
+```
+
+Notice the 'TO' keyword here. This is how we tell the materialized view to update the trades per minute table. The select statement gives the query to source the incoming data, in this case the coinbase ticker table where the raw data is stored.
+
+Frist we'll run the old query against a table where I've had ingestion running for a while - we are processing 916.94 thousand rows - the entire table, which would not scale terribly well.
+```
+5819 rows in set. Elapsed: 0.025 sec. Processed 916.94 thousand rows, 9.78 MB (36.19 million rows/s., 386.05 MB/s.)
+Peak memory usage: 37.02 MiB.
+```
+
+Now we'll run a new query that uses the materialized view and produces the same result:
+
+```sql
+WITH time_series AS (
+    SELECT 
+        arrayJoin(
+            range(
+                toUnixTimestamp(
+                    (SELECT min(minute)
+                     FROM coinbase_demo.trades_per_minute)
+                ),
+                toUnixTimestamp(
+                    (SELECT tumbleStart(now(), toIntervalMinute(1)))
+                ),
+                60  # increment by 60 seconds (1 minute)
+            )
+        ) as minute,
+        0 as num_trades
+),
+-- We need to get the sum of the trades per minute because the 
+-- SummingMergeTree delays the summing until merge time. This is 
+-- done for insert performance, so the most recent minute may have
+-- not been summed yet.
+summed_trades AS (
+    SELECT 
+        minute,
+        sum(num_trades) as num_trades
+    FROM coinbase_demo.trades_per_minute
+    GROUP BY minute
+    ORDER BY minute DESC
+)
+-- Now we join the time series with the summed trades to get the trades
+-- per minute.
+SELECT 
+     fromUnixTimestamp(ts.minute) as minute,
+     greatest(ts.num_trades, t.num_trades) as num_trades
+FROM time_series ts
+LEFT JOIN coinbase_demo.trades_per_minute t ON fromUnixTimestamp(ts.minute) = t.minute
+ORDER BY minute DESC;
+```
+
+This new query is much more efficient. It processes only the 5834 rows that are currently found in the trades_per_minute table.
+
+```
+5834 rows in set. Elapsed: 0.026 sec.
+```
+
+While both queries return very quickly on this dataset, the difference will become more pronounced as the dataset grows. In this case Clickhouse's speed was hiding the highly inefficient query from us.
+
+We can now go back to our dashboard and replace the old query with the new one.
 
 
 
