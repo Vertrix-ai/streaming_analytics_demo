@@ -13,5 +13,5 @@ sink:
   port: 8123
   database: "coinbase_demo"
   table: "coinbase_ticker"
-  user: "default"
-  password: ""
+  user: "coinbase"
+  password: "password"

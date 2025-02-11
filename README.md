@@ -42,11 +42,29 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
    ```bash
    poetry install
    ```
+
 3. Install your sink - I'm using clickhouse here.
     ```bash
     docker pull clickhouse/clickhouse-server:latest
-    docker run -d --name clickhouse-server -p 8123:8123 -p 9000:9000 clickhouse/clickhouse-server:latest
+    docker run -d \
+        --name clickhouse-server \
+        -p 8123:8123 \
+        -p 9000:9000
     ```
+
+   When I run this I take another step and map drives onto my local machine to store the data and logs for the clickhouse server. I do this through the following command:
+    ```bash
+    docker run -d \
+        --name clickhouse-server \
+        --ulimit nofile=262144:262144 \
+        -p 8123:8123 \
+        -p 9000:9000 \
+        -v $HOME/clickhouse/data:/var/lib/clickhouse \
+        -v $HOME/clickhouse/config/clickhouse-server:/etc/clickhouse-server \
+        -v $HOME/clickhouse/logs:/var/log/clickhouse-server \
+        clickhouse/clickhouse-server:latest
+    ```
+    Doing it this way requires you to set up the configs, but it has the advantage of persisting across container removals and cleanups.
 4. Make sure your clickhouse server is running and accessible.
     ```bash
     docker exec -it clickhouse-server clickhouse-client
@@ -58,7 +76,16 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
     CREATE DATABASE IF NOT EXISTS coinbase_demo;
     ```
 
-6. Create the table we'll use to store our data.
+6. Create the user we'll use to access the database.
+
+    ```sql
+    -- Create the user
+    CREATE USER coinbase IDENTIFIED BY 'password';
+
+    -- Grant permissions
+    GRANT ALL ON coinbase_demo.* TO coinbase;  
+    ```
+7. Create the table we'll use to store our data.
     ```sql
     CREATE TABLE IF NOT EXISTS coinbase_demo.coinbase_ticker (
         sequence UInt64,
@@ -80,12 +107,12 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
     ) ENGINE = MergeTree() ORDER BY (time, product_id, sequence); # Sorting key - maybe not the best - time has a higher cardinality than product_id, bad for generic exclusion algorithm
     ```
 
-7. Run the demo:
+8. Run the demo:
    ```bash
    poetry run python streaming_analytics_demo/listen.py --config demo_config.yaml
    ```
 
-8. You should now see data in your clickhouse server
+9. You should now see data in your clickhouse server
     ```bash
     select * from coinbase_demo.coinbase_ticker;
     ```
@@ -106,9 +133,9 @@ Now we'll install the Grafana [Clickhouse plugin](https://grafana.com/docs/grafa
 
 Let's also create a user for grafana to access clickhouse. This will be a read-only user.
 
-```bash
+```sql
 CREATE USER IF NOT EXISTS grafana IDENTIFIED WITH sha256_password BY 'password';
-GRANT SELECT ON coinbase_demo.* TO grafana_user;
+GRANT SELECT ON coinbase_demo.* TO grafana;
 ```
 
 After this we'll need to set up our configuration to allow grafana to access clickhouse. Grafana provides a way to configure plugins in the UI, but in the name of repeatability we'll do it using a [datasource config file](https://grafana.com/docs/grafana/latest/administration/provisioning/#data-sources). One note here: this is a demo, so I left the username and password in observability/.grafana.ini - please don't do this in a production environment.
@@ -240,6 +267,46 @@ This new query is much more efficient. It processes only the 5834 rows that are 
 While both queries return very quickly on this dataset, the difference will become more pronounced as the dataset grows. In this case Clickhouse's speed was hiding the highly inefficient query from us.
 
 We can now go back to our dashboard and replace the old query with the new one.
+
+# Analytics
+
+Now that we have some data in our database, and have the ability to detect problems with it, let's look at performing some analytics on it. Looking at the tools we have there is an argument that we already have the tools we need - after all, we can run queries in Grafana and create dashboards based on that. The issue is that Grafana is really targetted at observability and time series monitoring. It is designed to be easy for infrastructure teams to work with and does not have the rich user experience, and support for ad hoc analysis that can be found in other tools. So lets integrate a purpose-built BI tool by installing Superset.
+
+## Installation
+
+I'm going to use docker compose to install superset for this demo. This is not a production-grade installation, but it is easy for demo purposes. To start with we'll need to clone the superset repo.
+
+```bash
+git clone --depth=1  https://github.com/apache/superset.git
+cd superset
+```
+
+Before we start the container we'll need to install the dependencies and make some configuration changes. 
+ ```bash
+touch ./docker/requirements-local.txt
+ ```
+
+Edit your new requirements-local.txt file to include the following:
+
+```
+clickhouse-connect>=0.6.8
+```
+Now we can start the container.
+
+```bash
+docker compose -f docker-compose-non-dev.yml up
+```
+
+This one is going to take a while to start up. It's downloading all the dependencies and building the superset image. Once it has finished you should be able to access the superset UI at http://localhost:8088. Unless you've changed the admin password you can use admin/admin to login. From here click on the '+' on the top right, and select Data -> Connect Database.
+
+If you've succeeded in adding clickhouse then it will be available in the 'supported databases'.
+
+## Analytics
+
+Now that we have the infrastructure in place, let's perform our analytics. We're looking at a trading dataset, so we'll stick with the Genre and build out a dashboard showing the 5 minute Volume Weighted Average Price (VWAP) for the last 24 hours. The first step is to add a Superset dataset with our tick data.
+
+Superset provides multiple ways to do this - we can create a dataset from a table in our database and then build a chart from that using a builder, or we can use the SQL Lab to write a query and then build a chart from that. I'll take the latter approach
+
 
 
 
