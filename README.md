@@ -305,7 +305,73 @@ If you've succeeded in adding clickhouse then it will be available in the 'suppo
 
 Now that we have the infrastructure in place, let's perform our analytics. We're looking at a trading dataset, so we'll stick with the Genre and build out a dashboard showing the 5 minute Volume Weighted Average Price (VWAP) for the last 24 hours. The first step is to add a Superset dataset with our tick data.
 
-Superset provides multiple ways to do this - we can create a dataset from a table in our database and then build a chart from that using a builder, or we can use the SQL Lab to write a query and then build a chart from that. I'll take the latter approach
+Superset provides multiple ways to do this - we can create a dataset from a table in our database and then build a chart from that using a builder, or we can use the SQL Lab to write a query and then build a chart from that. I'll take the latter approach.
+
+Let's navigate to the SQL Lab and build our query:
+
+```sql
+-- construct a series of 5 minute periods for the prior 24 hours
+-- which is the period we want to chart
+WITH time_series AS (
+    SELECT 
+        arrayJoin(
+            range(
+                toUnixTimestamp(
+                    (SELECT tumbleStart((now() - INTERVAL 24 HOUR), toIntervalMinute(5)))
+                ),
+                toUnixTimestamp(
+                    (SELECT tumbleStart(now(), toIntervalMinute(5)))
+                ),
+                300  # increment by 300 seconds (5 minutes)
+            )
+        ) as interval
+),
+-- calculate the components of the vwap
+vwap AS (
+    SELECT 
+        tumbleStart(time, toIntervalMinute(5)) as period,
+        SUM(price * last_size) as volume_price,
+        SUM(last_size) as total_volume
+      FROM coinbase_demo.coinbase_ticker
+      WHERE 
+          period >= now() - INTERVAL 24 HOUR
+          AND last_size > 0  -- Filter out zero volume trades
+          AND price > 0      -- Filter out invalid prices
+      GROUP BY period
+)
+-- join the vwap calculation to the time series to give the 5 minute vwap for the last 24 hours
+SELECT 
+    fromUnixTimestamp(interval) as vwap_period,
+    IF(v.total_volume > 0, v.volume_price/v.total_volume, 0) as vwap
+FROM time_series ts
+LEFT JOIN vwap v ON fromUnixTimestamp(ts.interval) = v.period
+ORDER BY vwap_period DESC;
+```
+
+To build the chart we can just select the chart button below the query, and then fill out the wizard like this:
+
+<insert image>
+
+You can now save the chart, at which point you will be asked which dashboard you'd like to add it to.
+
+<insert image>
+
+Finally we can edit the dashboard by clicking on the '...' and set a refresh interval for the dashboard. That will give us a dashboard updating every 10 seconds. 
+
+The same performance concerns we had with ingestion monitoring apply here, Superset is just rerunning the full query every time. I won't go into how to create the materialized view here - it is the same process we saw before.
+
+# Conclusion
+
+At this point we have data ingestion via a custom python tool, a highly performant data warehouse in clickhouse, data observability via grafana, and analytics via superset.
+
+We've seen how we we can store and query streaming data in clickhouse, how we can use materialized views to offload some of our compute from query time to load time, and how we can present useable tools for analytics and monitoring.
+
+We've delivered value for the end users of the platform - but we're not done. This will hold up well initially, but inevitably on the business side we'll run into questions about what the data means as the number of datasets grows. We'll run into questions about the lineage of our data, and we'll get questions about what assertions we can make about the quality of it.
+
+On the engineering side we also still have work to do - The system appears to work, but as we scale we'll run into problems managing it if we leave it in this state. We've started writing some interesting queries - and the the source of truth for our data models and our transformations is split between the database and our BI tool.We'll run into problems where we break queries, where we have trouble tracking down how datasets are derived, and will very likely cause ourselves production issues as we make changes.
+
+In the next post we'll look at some additional tools we can add to our stack to address these issues.
+
 
 
 
