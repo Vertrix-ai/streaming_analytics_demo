@@ -1,4 +1,7 @@
-i# Python cache files
+# DBT
+logs/
+
+# Python cache files
 __pycache__/
 *.py[cod]
 *$py.class
