@@ -1,8 +1,7 @@
 # Streaming Analytics Demo
 
+## Ingestion tool
 A simple but flexible streaming tool for streaming data for migrating data from a streaming source to a storage system of choice. I built this mainly as a demo tool, and for my own personal amusement, please do not consider it production ready. It does provide a low-lift framework for migrating data in low-stakes situations. Again, this is a demo tool -- If you need a production-ready streaming tool, please use a proven tool like Kafka, Pulsar, Bento, etc.
-
-## Overview
 
 This project demonstrates a modular approach to stream processing with configurable sources and sinks. It uses an extensible architecture that allows for easy addition of new source andsink types through registration. Take a look at streaming_analytics_demo/sinks/file_sink.py for an example of a custom sink.
 
@@ -43,13 +42,22 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
    poetry install
    ```
 
-3. Install your sink - I'm using clickhouse here.
+3. Install your sink - I'm using clickhouse here. I'm using docker volumes here to ensure that the data is persisted across container removals and cleanups. Using bind mounts doesn't work because the permissions for newly created tables are set so that we can't drop tables.
     ```bash
     docker pull clickhouse/clickhouse-server:latest
-    docker run -d \
+
+    docker volume create clickhouse-data
+    docker volume create clickhouse-logs
+    docker volume create clickhouse-config
+
+    docker run -d \                      
         --name clickhouse-server \
+        --ulimit nofile=262144:262144 \
         -p 8123:8123 \
-        -p 9000:9000
+        -p 9000:9000 \
+        -v clickhouse-data:/var/lib/clickhouse \
+        -v clickhouse-config:/etc/clickhouse-server \
+        -v clickhouse-logs:/var/log/clickhouse-server clickhouse/clickhouse-server:latest
     ```
 
    When I run this I take another step and map drives onto my local machine to store the data and logs for the clickhouse server. I do this through the following command:
@@ -62,9 +70,12 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
         -v $HOME/clickhouse/data:/var/lib/clickhouse \
         -v $HOME/clickhouse/config/clickhouse-server:/etc/clickhouse-server \
         -v $HOME/clickhouse/logs:/var/log/clickhouse-server \
+        -e CLICKHOUSE_USER=default \
+        -e CLICKHOUSE_PASSWORD=yourpassword \
         clickhouse/clickhouse-server:latest
     ```
     Doing it this way requires you to set up the configs, but it has the advantage of persisting across container removals and cleanups.
+
 4. Make sure your clickhouse server is running and accessible.
     ```bash
     docker exec -it clickhouse-server clickhouse-client
@@ -117,6 +128,7 @@ The configuration file (`demo_config.yaml`) specifies the sources and sinks for 
     select * from coinbase_demo.coinbase_ticker;
     ```
 
+# The rest of the README describes the configuration of 3rd party tools to create a simple but effective data platform for streaming data.
 
 ## Monitoring
 
@@ -359,6 +371,233 @@ You can now save the chart, at which point you will be asked which dashboard you
 Finally we can edit the dashboard by clicking on the '...' and set a refresh interval for the dashboard. That will give us a dashboard updating every 10 seconds. 
 
 The same performance concerns we had with ingestion monitoring apply here, Superset is just rerunning the full query every time. I won't go into how to create the materialized view here - it is the same process we saw before.
+
+# Maintainability
+
+Install DBT - I considered using both DBT and sqlmesh for this demo, but decided to go with DBT for the following reasons:
+
+DBT is more mature
+It has a larger installed base
+SQL Mesh has a couple of advantages over DBT - more efficient incremental processing and column-level lineage, but since I'm using clickhouse for materialization and will later integrate OpenMetadata for lineage those advantages are less important for this project. SQLMesh does have the advantage of virtual environments, but I think that is outweighed by DBTs integrations for my purposes.
+
+# Installing DBT
+
+We'll start with a manual installation of DBT core. Since this is for local development we'll add it using poetry with
+
+```bash
+poetry add dbt-core@~1.8.0
+```
+
+I'm restricting the version to ~1.8.0 for compatibility with dbt-clickhouse, which is slightly behind the latest version of dbt-core.
+
+Now I'll add the clickhouse adapter with 
+
+```bash
+poetry add dbt-clickhouse
+```
+
+Finally I'll install both dependencies and check to make sure it's working:
+
+```bash
+poetry install
+dbt --version
+```
+
+## Set Up a Project
+
+```bash
+dbt init
+```
+
+When asked which database you'd like to use, select clickhouse.
+
+I've done one thing a bit unusual here - I've made the dbt project a subdirectory of a larger project. Since I did that I couldn't use the default project name, so I'm going to change in in the analytics/dbt_project.yml file.
+
+```yaml
+# Name your project! Project names should contain only lowercase characters
+# and underscores. A good package name should reflect your organization's
+# name or the intended use of these models
+name: 'streaming_analytics_demo'
+version: '1.0.0'
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'streaming_analytics_demo'
+```
+
+## Connect to clickhouse
+
+With that done we have the basic project set up. Now we need to connect to clickhouse. We'll do that by setting up a profile in ~/.dbt/profiles.yml. This will hold our connection details:
+
+```yaml
+streaming_analytics_demo:
+  target: dev
+  outputs:
+    dev:
+      type: clickhouse
+      schema: coinbase_demo
+      host: localhost
+      port: 8123
+      user: coinbase
+      password: password
+      secure: False
+```
+
+Now test the connection by running 
+
+```bash
+cd analytics
+dbt debug
+```
+
+You should see something like the following:
+
+```bash
+21:30:25    tcp_keepalive: False
+21:30:25  Registered adapter: clickhouse=1.8.9
+21:30:25    Connection test: [OK connection ok]
+
+21:30:25  All checks passed!
+```
+
+If you see an error about failing to drop tables, then you may need to adjust the permissions on the clickhouse data directory.
+
+
+## Set up our models
+
+Now that we're connected to clickhouse I'll set up our models. This is where we start creating a maintainable structure. I'm going to be basing the structure of this project on the ['Best Practices' guide from dbt](https://docs.getdbt.com/best-practices). The first structure to add is staging models for the coinbase source. In staging we're going to limit the transformations to simple lossless transformations like renamings, converting units, etc. 
+
+```
+mkdir -p models/coinbase
+```
+
+In this directory we'll create a file called stg_coinbase__sources.sql. This file will give a reference to the data we are using as the basis for our transformations.
+
+```yaml
+version: 2
+
+sources:
+  - name: stg_coinbase__sources
+    schema: coinbase_demo
+    description: "Raw coinbase data"
+    tables:
+      - name: coinbase_ticker
+        description: "Messages from the coinbase 'ticker' channel"
+        columns:
+          - name: sequence
+            description: "The sequence number of the message. Missing sequence numbers 
+            indicate missed messages. We expect gaps in this table because ticks do not represent the full feed."
+            tests:
+              - unique
+              - notNull
+          - name: trade_id
+            description: "The unique ID of the trade. We expect no gaps in this dataset because we should have every trade."
+            tests:
+              - unique
+              - notNull
+          - name: price
+            descrption: "the price in the base currency at which the trade was executed."
+            tests:
+              - notNull
+          - name: last_size
+            description: "The size of the last trade."
+            tests:
+              - notNull
+          - name: time
+            description: "The ISO 8601 timestamp of the trade."
+            tests:
+              - notNull
+          - name: product_id
+            description: "The product ID (e.g. 'BTC-USD') of the product for which the trade was executed."
+          - name: side
+            description: "The side of the trade (buy or sell)"
+            tests:
+              - accepted_values:
+                  values: ['buy', 'sell']
+          - name: open_24h
+            description: "The opening price 24 hours ago."
+            tests:
+              - notNull
+          - name: volume_24h
+            description: "The volume of trading activity in the last 24 hours."
+            tests:
+              - notNull
+          - name: low_24h
+            description: "The lowest price in the last 24 hours."
+            tests:
+              - notNull
+          - name: high_24h
+            description: "The highest price in the last 24 hours."
+            tests:
+              - notNull
+          - name: volume_30d
+            description: "The volume of trading activity in the last 30 days."
+            tests:
+              - notNull
+          - name: best_bid
+            description: "The highest bid price."
+            tests:
+              - notNull
+          - name: best_ask
+            description: "The lowest ask price."
+            tests:
+              - notNull
+          - name: best_bid_size
+            description: "The size of the best bid."
+            tests:
+              - notNull
+          - name: best_ask_size
+            description: "The size of the best ask."
+            tests:
+              - notNull
+```
+
+There are a couple of things worth mentioning here:
+- For most data stores dbt uses a combination of 'database' and 'schema' to identify the source. Clickhouse is unusual in that it only requires a 'schema' to identify the source where the 'schema' in the sources yaml is the name of the clickhouse database. We've also defined some basic tests for the data in the source table. 
+
+With the source table fully defined I'm going to create the staging model. In this case there is going to be a single model where I'm really just renaming a bit.
+
+```bash
+touch staging/coinbase/stg_coinbase__trades.sql
+```
+
+The contents of that file are:
+
+```sql
+with 
+source as (
+    select * from {{ source('stg_coinbase__sources', 'coinbase_ticker') }}
+)
+select 
+    sequence as sequence_id,
+    trade_id,
+    price,
+    last_size,
+    time as trade_time,
+    product_id,
+    side,
+    open_24h,
+    volume_24h,
+    low_24h,
+    high_24h,
+    volume_30d,
+    best_bid,
+    best_ask,
+    best_bid_size,
+    best_ask_size
+from source
+```
+
+With that done we can run
+
+```bash
+dbt run
+```
+
+and we'll see that we have a new view in our clickhouse database reflecting the coinbase_tickers table, with fields renamed as we specified in our model.
+
+This will create a new directory called models/coinbase/staging and put the coinbase_tickers table in it.
+
+
 
 # Conclusion
 

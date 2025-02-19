@@ -1,6 +1,4 @@
--- this query shows:
---  the number of trades ingested per minute
---the volume
+-- this query shows the number of rows ingested per minute
 
 -- CTE for each minute since the start of the data to now
 WITH time_series AS (
