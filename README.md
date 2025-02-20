@@ -461,6 +461,12 @@ You should see something like the following:
 
 If you see an error about failing to drop tables, then you may need to adjust the permissions on the clickhouse data directory.
 
+Before we start creating our own models I'll drop the 'example' model that dbt creates by default
+
+```bash
+rm -rf models/example
+```
+
 
 ## Set up our models
 
@@ -470,7 +476,7 @@ Now that we're connected to clickhouse I'll set up our models. This is where we 
 mkdir -p models/coinbase
 ```
 
-In this directory we'll create a file called stg_coinbase__sources.sql. This file will give a reference to the data we are using as the basis for our transformations.
+In this directory we'll create a file called _coinbase__sources.sql. This file will give a reference to the data we are using as the basis for our transformations.
 
 ```yaml
 version: 2
@@ -486,69 +492,69 @@ sources:
           - name: sequence
             description: "The sequence number of the message. Missing sequence numbers 
             indicate missed messages. We expect gaps in this table because ticks do not represent the full feed."
-            tests:
+            data_tests:
               - unique
-              - notNull
+              - not_null
           - name: trade_id
             description: "The unique ID of the trade. We expect no gaps in this dataset because we should have every trade."
-            tests:
+            data_tests:
               - unique
-              - notNull
+              - not_null
           - name: price
             descrption: "the price in the base currency at which the trade was executed."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: last_size
             description: "The size of the last trade."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: time
             description: "The ISO 8601 timestamp of the trade."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: product_id
             description: "The product ID (e.g. 'BTC-USD') of the product for which the trade was executed."
           - name: side
             description: "The side of the trade (buy or sell)"
-            tests:
+            data_tests:
               - accepted_values:
                   values: ['buy', 'sell']
           - name: open_24h
             description: "The opening price 24 hours ago."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: volume_24h
             description: "The volume of trading activity in the last 24 hours."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: low_24h
             description: "The lowest price in the last 24 hours."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: high_24h
             description: "The highest price in the last 24 hours."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: volume_30d
             description: "The volume of trading activity in the last 30 days."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: best_bid
             description: "The highest bid price."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: best_ask
             description: "The lowest ask price."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: best_bid_size
             description: "The size of the best bid."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
           - name: best_ask_size
             description: "The size of the best ask."
-            tests:
-              - notNull
+            data_tests:
+              - not_null
 ```
 
 There are a couple of things worth mentioning here:
@@ -557,7 +563,7 @@ There are a couple of things worth mentioning here:
 With the source table fully defined I'm going to create the staging model. In this case there is going to be a single model where I'm really just renaming a bit.
 
 ```bash
-touch staging/coinbase/stg_coinbase__trades.sql
+touch staging/coinbase/_coinbase__trades.sql
 ```
 
 The contents of that file are:
@@ -596,6 +602,34 @@ dbt run
 and we'll see that we have a new view in our clickhouse database reflecting the coinbase_tickers table, with fields renamed as we specified in our model.
 
 This will create a new directory called models/coinbase/staging and put the coinbase_tickers table in it.
+
+We've also defined tests for the source data. the tests we are currently using are all dbt built in tests. Executing
+
+```bash
+dbt test
+```
+
+will run the tests. Right now everything should pass, though if you change one of the values for 'side' you'll be able to see the tests fail. I make a habit of running dbt test after every change I make to the models. This gives a strong signal that my changes have not broken anything in the data.
+
+Now that we have a staging model to represent the data as we receive it, we can start transforming it into the shape we'll need for our analytics. In the last post we saw that for both the monitoring use case - tracking trades in the last minute - and the analytics use case - tracking the 5 minute VWAP - we'll look to roll up the trades into a time-based aggregation. This is the first place we'll need to make a decision about the best practices for structure - do we create an aggregate in staging which we share, or do we create one model for data ops, and another for trading? I'm going to take an educated guess that it will be easier to maintain if we create one model in sharing and build business focused intermediate models off of that common core.
+
+I'm also going to decide that I'll create the new model in the same sql file. 
+
+
+add the model to the dbt_project.yml file
+```yaml
+models:
+  analytics:
+    # This is the default materialization for all models in the staging directory
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: table
+```
+
+Since we are also creating a new model I will create tests for that as well. DBT supports both a concept of data tests and unit tests. You saw data tests above. A key difference is that data tests are run after the model is created, and are designed to test the data in the model. Unit tests are designed to test the logic of the model on static data. 
+
+Unit tests therefore give us a way to catch regressions before we try it on real data. 
 
 
 

@@ -34,3 +34,6 @@ models:
     # This is the default materialization for all models in the staging directory
     staging:
       +materialized: view
+    intermediate:
+      +enabled: true
+      +materialized: table

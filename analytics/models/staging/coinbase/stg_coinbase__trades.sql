@@ -24,8 +24,6 @@ select
     best_ask_size
 from source
 
-/*
-    Uncomment the line below to remove records with null `id` values
+/**
+    Model representing a 
 */
-
--- where id is not null
