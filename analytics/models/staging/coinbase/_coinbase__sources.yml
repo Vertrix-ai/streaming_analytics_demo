@@ -1,0 +1,77 @@
+version: 2
+
+sources:
+  - name: stg_coinbase__sources
+    schema: coinbase_demo
+    description: "Raw coinbase data"
+    tables:
+      - name: coinbase_ticker
+        description: "Messages from the coinbase 'ticker' channel"
+        columns:
+          - name: sequence
+            description: "The sequence number of the message. Missing sequence numbers 
+            indicate missed messages. We expect gaps in this table because ticks do not represent the full feed."
+            tests:
+              - unique
+              - not_null
+          - name: trade_id
+            description: "The unique ID of the trade. We expect no gaps in this dataset because we should have every trade."
+            tests:
+              - unique
+              - not_null
+          - name: price
+            descrption: "the price in the base currency at which the trade was executed."
+            tests:
+              - not_null
+          - name: last_size
+            description: "The size of the last trade."
+            tests:
+              - not_null
+          - name: time
+            description: "The ISO 8601 timestamp of the trade."
+            tests:
+              - not_null
+          - name: product_id
+            description: "The product ID (e.g. 'BTC-USD') of the product for which the trade was executed."
+          - name: side
+            description: "The side of the trade (buy or sell)"
+            tests:
+              - accepted_values:
+                  values: ['buy', 'sell']
+          - name: open_24h
+            description: "The opening price 24 hours ago."
+            tests:
+              - not_null
+          - name: volume_24h
+            description: "The volume of trading activity in the last 24 hours."
+            tests:
+              - not_null
+          - name: low_24h
+            description: "The lowest price in the last 24 hours."
+            tests:
+              - not_null
+          - name: high_24h
+            description: "The highest price in the last 24 hours."
+            tests:
+              - not_null
+          - name: volume_30d
+            description: "The volume of trading activity in the last 30 days."
+            tests:
+              - not_null
+          - name: best_bid
+            description: "The highest bid price."
+            tests:
+              - not_null
+          - name: best_ask
+            description: "The lowest ask price."
+            tests:
+              - not_null
+          - name: best_bid_size
+            description: "The size of the best bid."
+            tests:
+              - not_null
+          - name: best_ask_size
+            description: "The size of the best ask."
+            tests:
+              - not_null
+
