@@ -6,7 +6,7 @@
 ) }}
 
 with source as (
-    select * from coinbase_demo.coinbase_ticker
+    select * from {{ source('stg_coinbase__sources', 'coinbase_ticker') }}
 )
 SELECT 
     sequence as sequence_id,

@@ -24,10 +24,12 @@
   
   {{ run_hooks(pre_hooks) }}
 
+  {%- set compiled_sql = render(sql) -%}
+
   {%- set ddl -%}
     CREATE MATERIALIZED VIEW IF NOT EXISTS {{ target_relation }}
     TO {{ materialization_table }}
-    AS {{ sql }}
+    AS {{ compiled_sql }}
   {%- endset -%}
 
   {{ log("Creating materialized view with DDL:", info=True) }}
