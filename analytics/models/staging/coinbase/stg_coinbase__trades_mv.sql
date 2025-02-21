@@ -1,16 +1,14 @@
-/*
-    Model representing the coinbase tick data.
-*/
 {{ config(
-    materialized='table',
-    engine='MergeTree()',
+    materialized='clickhouse_materialized_view',
+    materialization_schema='coinbase_demo',
+    materialization_identifier='stg_coinbase__trades',
     order_by='trade_time'
 ) }}
 
 with source as (
-    select * from {{ source('stg_coinbase__sources', 'coinbase_ticker') }}
+    select * from coinbase_demo.coinbase_ticker
 )
-select 
+SELECT 
     sequence as sequence_id,
     trade_id,
     price,
@@ -27,4 +25,4 @@ select
     best_ask,
     best_bid_size,
     best_ask_size
-from source
+FROM source

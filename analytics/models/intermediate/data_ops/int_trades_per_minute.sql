@@ -1,5 +1,7 @@
 {{ config(
-    materialized='table'
+    materialized='table',
+    engine='SummingMergeTree()',
+    order_by='minute'
 ) }}
 
 SELECT 

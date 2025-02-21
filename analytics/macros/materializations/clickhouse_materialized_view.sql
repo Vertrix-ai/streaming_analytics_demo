@@ -7,11 +7,12 @@
       type='table'
   ) -%}
 
-  {%- set materialization_schema = config.require('materialization_s') -%}
-  {%- set materialization_identifier = config.require('materialization_i') -%}
+  {%- set materialization_schema = config.require('materialization_schema') -%}
+  {%- set materialization_identifier = config.require('materialization_identifier') -%}
+  {%- set order_by = config.require('order_by') -%}
 
-  {{ log("This identifier: " ~ this.materialization_identifier, info=True) }}
-  {{ log("This schema: " ~ this.materialization_schema, info=True) }}
+  {{ log("This identifier: " ~ materialization_identifier, info=True) }}
+  {{ log("This schema: " ~ materialization_schema, info=True) }}
   
 
   {%- set materialization_table = api.Relation.create(
