@@ -11,8 +11,8 @@
   {%- set materialization_identifier = config.require('materialization_identifier') -%}
   {%- set order_by = config.require('order_by') -%}
 
-  {{ log("This identifier: " ~ materialization_identifier, info=True) }}
-  {{ log("This schema: " ~ materialization_schema, info=True) }}
+  {{ log("Materialization identifier: " ~ materialization_identifier, info=True) }}
+  {{ log("Materialization schema: " ~ materialization_schema, info=True) }}
   
 
   {%- set materialization_table = api.Relation.create(

@@ -1,5 +1,5 @@
 /*
-    Model representing the coinbase tick data.
+    Model representing the coinbase tick data, slightly renamed.
 */
 {{ config(
     materialized='table',
