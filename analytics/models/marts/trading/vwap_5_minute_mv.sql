@@ -5,12 +5,14 @@
     order_by='minute'
 ) }}
 
+-- Construct 5 minute intervals
 WITH five_minute_intervals AS (
     SELECT 
         tumbleStart(minute, toIntervalMinute(5)) as five_min_interval
     FROM {{ ref('minutes') }}
     GROUP BY five_min_interval
 )
+-- Get all vwap values
 SELECT 
     five_min_interval as minute,
     SUM(int_trades_per_minute.total_volume) as total_volume,

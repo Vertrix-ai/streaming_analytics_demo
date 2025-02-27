@@ -3,18 +3,19 @@
     order_by='minute'
 ) }}
 
+-- Get all trades
 WITH trades AS (
     SELECT * from {{ ref('stg_coinbase__trades') }}
 )
 SELECT
-    toDateTime(
-        arrayJoin(
+    toDateTime( -- Convert the unix timestamp to a datetime
+        arrayJoin( -- Get all minutes in the range
             range(
-                toUnixTimestamp(
+                toUnixTimestamp( -- Get the start of the first minute
                     (SELECT tumbleStart(min(trade_time), toIntervalMinute(1))
                         FROM trades)
                 ),
-                toUnixTimestamp(
+                toUnixTimestamp( -- Get the start of the last minute
                     (SELECT tumbleStart(now(), toIntervalMinute(1)))
                 ),
                 60  # increment by 60 seconds (1 minute)
