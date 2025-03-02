@@ -1,5 +1,4 @@
 {{ config(
-    materialized='ephemeral',
     order_by='minute'
 ) }}
 
