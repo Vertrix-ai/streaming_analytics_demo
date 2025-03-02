@@ -1,0 +1,28 @@
+models:
+  - name: vwap_5_minute
+    schema: coinbase_demo
+    description: "Stores the volume weighted average price (VWAP) for each 5 minute interval."
+    columns:
+      - name: minute
+        description: "The first minute of the 5 minute interval. This column may contain multiple rows with the same minute
+        if the merge engine has not yet completed the aggregation. It may also be missing minutes if there are no trades during that interval."
+        data_tests:
+          - not_null
+      - name: total_volume
+        description: "The total volume of trades for the interval. To use this column directly we need to sum across the minute
+        to get full precision or it is possible that the most recent minute or two will have multiple rows with partial data."
+        data_tests:
+          - not_null
+      - name: total_volume_price
+        description: "The total volume of trades for the minute multiplied by the price of each trade. We store this value for 
+        later use in calculating the volume weighted average price (VWAP)."
+        data_tests:
+          - not_null
+      - name: num_trades
+        description: "The number of trades for the minute."
+        data_tests:
+          - not_null
+      - name: vwap
+        description: "The volume weighted average price (VWAP) for the interval."
+        data_tests:
+          - not_null
