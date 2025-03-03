@@ -37,3 +37,9 @@ models:
     intermediate:
       +enabled: true
       +materialized: table
+    marts:
+      +enabled: true
+      +materialized: table
+    utilities:
+      +enabled: true
+      +materialized: 'ephemeral'
