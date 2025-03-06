@@ -1,0 +1,10 @@
+models:
+  - name: minutes
+    schema: coinbase_demo
+    description: "A CTE that generates each minute from the earliest trade to now. This is used to ensure that 
+    we have every minute available, whether or not there are trades during that time."
+    columns:
+      - name: minute
+        description: "Every minute from the earliest trade to now."
+      - name: num_trades
+        description: "Always 0 in this model. It is included as a convenience."

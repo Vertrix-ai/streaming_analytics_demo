@@ -1,5 +1,6 @@
 models:
   - name: vwap_5_minute
+    access: public
     schema: coinbase_demo
     description: "Stores the volume weighted average price (VWAP) for each 5 minute interval."
     columns:
